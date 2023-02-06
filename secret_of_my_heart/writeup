@@ -1,0 +1,20 @@
+Program logic:
+Quite similar to note-like heap games. Every item in the note contains 1) name of item; 
+2)size of item contents; 3) item contents 
+
+Vulnerablitiy:
+Off-by-null when reading into item contents.
+
+Exploitation:
+1. chunk overlap. | chunk A | chunk B | chunk C |
+Off-by-null to set prevsize(C) = size(A) + size(B) and size(C) = size(C) & 0x100.
+Then free A, A must be in unsorted bins, since malloc_consolidate need to invoke unlink. 
+If A is in fastbins, unlink will trigger null pointer error. Then Free C. We will get a 
+chunk A+B+C in unsorted bin. If we allocate A+B+C, we can control the content of B even
+after B is freed (UAF).
+2. Fastbin attack. Since there is UAF on B, we can free B, then change B's fd pointer to 
+&__malloc_hook-0x23, allocate this fake chunk to change __malloc_hook to one-gadget. 
+3. Trigger __malloc_hook by trigger malloc_printerr. In this game, every one gadget won't 
+succeed if we just invoke malloc. However, we can make a double free fault, to invoke malloc_printerr,
+which will also invoke malloc. 
+4. Potential exploitations.
